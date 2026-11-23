@@ -40,19 +40,8 @@ window.THIEP = {
     "images/thiep/2.jpg",   // chương trình tiệc cưới (mặt trước thiệp giấy, đã bỏ mã QR và lề trống)
   ],
 
-  // 1b) Ô BẤM TRÊN ẢNH THIỆP: chữ "TẠI NHÀ TRAI" trên thiệp ăn hỏi có viền vàng nhấp nháy, chạm vào mở pop up
-  //     địa chỉ nhà trai. vung: [trái %, trên %, rộng %, cao %] trên ảnh, in ra ở cuối cong-cu/tao_thiep_phu.py
-  //     (chạy lại script thì chép lại số mới vào đây).
-  oBamThiep: [
-    {
-      anh: "images/thiep/an-hoi.jpg",
-      vung: [[25.6, 89.64, 14.92, 2.64], [73.09, 89.64, 14.92, 2.64]],
-      nhan: "Địa chỉ",
-      tieuDe: "Tư gia nhà trai",
-      diaChi: ["P2601, Toà nhà Licogi 13", "164 Khuất Duy Tiến, Thanh Xuân, Hà Nội"],
-      ghiChu: "",   // dòng chữ nghiêng dưới địa chỉ (để "" thì không hiện)
-    },
-  ],
+  // 1b) Ô BẤM TRÊN ẢNH THIỆP (mở pop up, ví dụ địa chỉ). Hiện không dùng; cách khai báo xem lịch sử git.
+  oBamThiep: [],
 
   // 2) ĐỊA ĐIỂM
   diaDiem: {

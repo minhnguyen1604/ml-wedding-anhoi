@@ -121,12 +121,13 @@ def xoa_chu(anh, khung, nguong, chu_xanh=False):
     v = vung.astype(int)
     sang = v.mean(axis=2)
     if chu_xanh:
+        # vung đang ở thứ tự BGR: kênh 1 = lục, kênh 2 = đỏ. Chữ xanh: lục >= đỏ; nét hoa rum màu be: đỏ > lục.
         mat_na = (sang < 150) | ((v[:, :, 1] >= v[:, :, 2]) & (sang < 246))
         mat_na = cv2.dilate(mat_na.astype(np.uint8) * 255, np.ones((3, 3), np.uint8))
-        a[y0:y1, x0:x1] = cv2.inpaint(vung, mat_na, 3, cv2.INPAINT_TELEA)[:, :, ::-1]
+        a[y0:y1, x0:x1] = cv2.inpaint(vung, mat_na, 5, cv2.INPAINT_NS)[:, :, ::-1]
     else:
-        mat_na = cv2.dilate((sang < nguong).astype(np.uint8) * 255, np.ones((7, 7), np.uint8))
-        a[y0:y1, x0:x1] = cv2.inpaint(vung, mat_na, 6, cv2.INPAINT_TELEA)[:, :, ::-1]
+        # vùng chỉ có chữ trên nền trắng (không có hoa rum): tô lại bằng màu nền, sạch cả viền mờ của chữ
+        a[y0:y1, x0:x1] = np.median(a[y0:y1, x0:x1].reshape(-1, 3), axis=0).astype(a.dtype)
     return Image.fromarray(a)
 
 
@@ -170,6 +171,36 @@ if DOI_NOI_TIEC:
     an_hoi = xoa_chu(an_hoi, (560, 1765, 1645, 1868), 205)
     viet("17H30 | CHỦ NHẬT | 27.12.2026", phong(TIMES_DAM, co_ngay), LE_PHAI + 1, day_ngay)
 
+# Lời mời mới (2026-11-23): lễ ăn hỏi và lễ thành hôn tổ chức tại P2705, tầng 27, toà nhà văn phòng Licogi 13,
+# giờ chính 11H15. Bỏ dòng vàng "TƯ GIA NHÀ GÁI"; viết lại lời mời 3 dòng và địa chỉ 2 dòng bằng Times New Roman
+# đúng cỡ chữ cũ, căn phải; địa chỉ đặt giữa khoảng trống còn lại phía trên dòng giờ.
+LOI_MOI = ("TỚI DỰ LỄ ĂN HỎI - LỄ THÀNH HÔN", "CỦA TUẤN MINH VÀ TÚ LINH", "CÙNG GIA ĐÌNH CHÚNG TÔI TẠI")
+DIA_CHI = ("P2705, TẦNG 27, TÒA NHÀ VĂN PHÒNG", "LICOGI 13, 164 KHUẤT DUY TIẾN, HÀ NỘI")
+GIO_CHINH = "11H15 | CHỦ NHẬT | 27.12.2026"
+co_moi, day_moi = khop("TỚI DỰ TIỆC THÂN MẬT CHUNG VUI CÙNG", TIMES, (555, 1183, 1626, 1238))
+_, day_moi_2 = khop("GIA ĐÌNH CHÚNG TÔI TẠI", TIMES, (985, 1257, 1627, 1312))
+co_dc, day_dc_2 = khop("MANDARIN GARDEN, HOÀNG MINH GIÁM, HÀ NỘI", TIMES, (491, 1631, 1627, 1680))
+_, day_dc_1 = khop("P2705, TẦNG 27, TOÀ B3, CỔNG 3 CHUNG CƯ", TIMES, (646, 1558, 1627, 1613))
+co_ngay, day_ngay = khop("13H00 | CHỦ NHẬT | 27.12.2026", TIMES_DAM, (587, 1777, 1628, 1856))
+an_hoi = xoa_chu(an_hoi, (430, 1170, 1645, 1322), 0)                   # lời mời cũ (nền trắng, hoa rum ở xa bên trái)
+an_hoi = xoa_chu(an_hoi, (790, 1400, 1645, 1530), 235)                  # TƯ GIA NHÀ GÁI
+an_hoi = xoa_chu(an_hoi, (430, 1545, 800, 1695), 0, chu_xanh=True)      # địa chỉ nhà gái, đoạn đè lên hoa rum
+an_hoi = xoa_chu(an_hoi, (800, 1545, 1645, 1695), 0)                    # địa chỉ nhà gái, đoạn nền trắng
+an_hoi = xoa_chu(an_hoi, (560, 1765, 800, 1868), 0, chu_xanh=True)     # dòng giờ chính, mép trái gần hoa rum
+an_hoi = xoa_chu(an_hoi, (800, 1765, 1645, 1868), 0)
+buoc_moi = day_moi_2 - day_moi
+for i, dong in enumerate(LOI_MOI):
+    viet(dong, phong(TIMES, co_moi), LE_PHAI, day_moi + i * buoc_moi)
+buoc_dc = day_dc_2 - day_dc_1
+cao_hoa = co_dc * .662                       # chiều cao chữ hoa Times New Roman
+tren = day_moi + 2 * buoc_moi + 14           # dưới dòng lời mời cuối (kể cả dấu nặng)
+duoi = 1777                                  # đỉnh dòng giờ chính
+khoi = cao_hoa + buoc_dc + 10
+d1 = tren + (duoi - tren - khoi) / 2 + cao_hoa
+for i, dong in enumerate(DIA_CHI):
+    viet(dong, phong(TIMES, co_dc), LE_PHAI, d1 + i * buoc_dc)
+viet(GIO_CHINH, phong(TIMES_DAM, co_ngay), LE_PHAI + 1, day_ngay)
+
 # d) hàng biểu tượng -> timeline 4 mốc: 12H00 tập trung tại nhà trai · 13H00 lễ ăn hỏi tại nhà gái · 15H00 đón dâu
 #    · 17H30 tiệc thân mật. Biểu tượng tráp / xe hoa / bát đĩa cắt từ thiệp; mốc 12H00 vẽ thêm ngôi nhà cùng nét.
 #    Biểu tượng nằm trên một đường kẻ ngang có chấm tròn, dưới là giờ, tên mốc và nơi (như tờ chương trình tiệc cưới).
@@ -207,7 +238,7 @@ def ve_nha(rong=150):
 
 TAM = [596, 882, 1168, 1454]                 # tâm 4 cột, cột cuối giữ đúng chỗ cũ (lề phải chữ TIỆC THÂN MẬT)
 DAY_BT, Y_KE = 2160, 2193                    # chân các biểu tượng, hàng đường kẻ
-MOC = [("12H00", "TẬP TRUNG", "TẠI NHÀ TRAI", None), ("13H00", "LỄ ĂN HỎI", "TẠI NHÀ GÁI", "trap"),
+MOC = [("11H15", "TẬP TRUNG", "TẠI NHÀ TRAI", None), ("13H00", "LỄ ĂN HỎI", "TẠI NHÀ GÁI", "trap"),
        ("15H00", "ĐÓN DÂU", "", "xe"), ("17H30", "TIỆC THÂN MẬT", "TẠI NHÀ TRAI", "dia")]
 O_BAM = []                                   # vùng chữ "TẠI NHÀ TRAI" (tỉ lệ % trên ảnh) để trang web đặt ô bấm mở địa chỉ
 nha = ve_nha()
