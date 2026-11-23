@@ -267,14 +267,71 @@ for x in TAM:
 #    - "phu_de": giữ nguyên chữ "Lễ Ăn Hỏi" gốc, nhích lên; dưới là dòng phụ "& LỄ THÀNH HÔN" chữ in hoa mảnh,
 #      giãn chữ, căn phải (Noto Serif Display màu vàng hoặc Times New Roman màu xanh rêu như chữ trên thiệp).
 #    - "so_le": hai dòng chữ viết tay so le (đã thử, gia đình chê).
-#    - "alex_brush" (đang dùng, gia đình chọn): viết lại cả tiêu đề hai dòng "Lễ Ăn Hỏi" / "& Lễ Thành Hôn" bằng
-#      phông Alex Brush (Google Fonts, OFL, phong-chu/alex-brush/), màu vàng, căn phải.
+#    - "alex_brush": viết lại cả tiêu đề hai dòng "Lễ Ăn Hỏi" / "& Lễ Thành Hôn" bằng phông Alex Brush (Google Fonts).
+#    - "chu_ky" (đang dùng, gia đình chọn): hai dòng như trên nhưng bằng phông chữ ký Photograph Signature (cùng phông
+#      chữ "Quý khách"). Phông thiếu ễ, Ă, ỏ nên ghép dấu: ngã tách từ "ã", dấu hỏi là phần trên dấu "?",
+#      dấu trăng là nửa dưới nét chữ "o".
 import os
-KIEU_TIEU_DE = os.environ.get("KIEU_TIEU_DE", "alex_brush")
+KIEU_TIEU_DE = os.environ.get("KIEU_TIEU_DE", "chu_ky")
 ALEX = GOC / "phong-chu" / "alex-brush" / "AlexBrush-Regular.ttf"
 MAU_TIEU_DE = (172, 134, 66)
 lop_moi[MAU_TIEU_DE] = Image.new("L", (an_hoi.width * K, an_hoi.height * K), 0)
-if KIEU_TIEU_DE == "alex_brush":
+if KIEU_TIEU_DE == "chu_ky":
+    def _lop(f, chu, w, h, x, day):
+        l = Image.new("L", (w, h), 0)
+        ImageDraw.Draw(l).text((x, day), chu, font=f, fill=255, anchor="ls")
+        return np.asarray(l).astype(np.int16)
+
+    def _cat(a):
+        ys, xs = np.nonzero(a > 30)
+        return a[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+
+    def _co(a, cao=None, rong=None):
+        im = Image.fromarray(a.astype(np.uint8))
+        r = cao / im.height if cao else rong / im.width
+        return np.asarray(im.resize((max(1, round(im.width * r)), max(1, round(im.height * r))), Image.LANCZOS)).astype(np.int16)
+
+    def _dau(f):
+        s_ = f.size
+        w = h = s_ * 2
+        day = int(h * .75)
+        nga = _cat(np.clip(_lop(f, "ã", w, h, s_ // 2, day) - _lop(f, "a", w, h, s_ // 2, day), 0, 255))
+        hc = _cat(_lop(f, "?", w, h, s_ // 2, day))
+        trong = np.flatnonzero(~(hc > 30).any(axis=1))
+        hoi = _cat(hc[:trong[-1]] if len(trong) else hc[: int(hc.shape[0] * .7)])
+        o = _cat(_lop(f, "o", w, h, s_ // 2, day))
+        trang = _cat(o[int(o.shape[0] * .55):])
+        return {"ngã": nga, "hỏi": hoi, "trăng": trang}
+
+    def _dong(f, chu, ghep, w, h, x_phai, day, D):
+        x0 = x_phai - f.getlength(chu)
+        l = _lop(f, chu, w, h, x0, day)
+        for i, (ten, kt, khe) in ghep.items():
+            g = _lop(f, chu[i], w, h, x0 + f.getlength(chu[:i]), day)
+            ys, xs = np.nonzero(g > 30)
+            top = ys.min()
+            d = _co(D[ten], rong=kt) if ten == "trăng" else _co(D[ten], cao=kt)
+            dinh = xs[ys < top + max(4, d.shape[0] * .6)]
+            cx = (dinh.min() + dinh.max()) / 2
+            yy, xx = int(top - khe - d.shape[0]), int(cx - d.shape[1] / 2)
+            vung = l[yy:yy + d.shape[0], xx:xx + d.shape[1]]
+            l[yy:yy + d.shape[0], xx:xx + d.shape[1]] = np.maximum(vung, d[:vung.shape[0], :vung.shape[1]])
+        return l
+
+    an_hoi.paste(Image.new("RGB", (1645 - 690, 850 - 560), nen_trang), (690, 560))   # xoá tiêu đề gốc
+    VUNG_TD = (480, 380, 1700, 890)              # vùng vẽ tiêu đề (toạ độ ảnh gốc)
+    f_ck = ImageFont.truetype(str(PHONG_CHU_KY), 200)
+    co_ck = 200 * 900 / f_ck.getlength("& Lê Thành Hôn")   # dòng dưới rộng 900 điểm ảnh
+    f_ck = ImageFont.truetype(str(PHONG_CHU_KY), round(co_ck * K))
+    D = _dau(f_ck)
+    xh = -f_ck.getbbox("n", anchor="ls")[1]
+    w_v, h_v = (VUNG_TD[2] - VUNG_TD[0]) * K, (VUNG_TD[3] - VUNG_TD[1]) * K
+    phai = (LE_PHAI - VUNG_TD[0]) * K
+    l1 = _dong(f_ck, "Lê An Hoi", {1: ("ngã", D["ngã"].shape[0], 2 * K), 3: ("trăng", D["ngã"].shape[1] * 1.15, 3 * K),
+                                   7: ("hỏi", xh * .55, 3 * K)}, w_v, h_v, phai, (640 - VUNG_TD[1]) * K, D)
+    l2 = _dong(f_ck, "& Lê Thành Hôn", {3: ("ngã", D["ngã"].shape[0], 2 * K)}, w_v, h_v, phai, (812 - VUNG_TD[1]) * K, D)
+    lop_moi[MAU_TIEU_DE].paste(Image.fromarray(np.maximum(l1, l2).clip(0, 255).astype(np.uint8)), (VUNG_TD[0] * K, VUNG_TD[1] * K))
+elif KIEU_TIEU_DE == "alex_brush":
     if not ALEX.exists():
         sys.exit(f"Thiếu phông {ALEX} (tải AlexBrush-Regular.ttf từ github.com/google/fonts, ofl/alexbrush).")
     an_hoi.paste(Image.new("RGB", (1645 - 690, 850 - 560), nen_trang), (690, 560))   # xoá tiêu đề gốc
