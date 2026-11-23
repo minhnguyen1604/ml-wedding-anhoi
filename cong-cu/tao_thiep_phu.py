@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 GOC = Path(__file__).resolve().parent.parent
 RONG = 1080                                  # bề ngang ảnh xuất ra
@@ -262,6 +262,51 @@ ve = ImageDraw.Draw(lop_moi[MAU_XANH])
 ve.line([((TAM[0] - 140) * K, Y_KE * K), (LE_PHAI * K, Y_KE * K)], fill=170, width=round(1.6 * K))
 for x in TAM:
     ve.ellipse([(x - 6) * K, (Y_KE - 6) * K, (x + 6) * K, (Y_KE + 6) * K], fill=255)
+
+# f) Tiêu đề hai dòng so le: "Lễ Ăn Hỏi" (giữ nguyên chữ gốc, thu nhỏ một chút, lệch trái) và "& Lễ Thành Hôn"
+#    (lệch phải). Chữ "Lễ" dòng dưới cắt từ chính chữ gốc; "&", "Thành Hôn" viết bằng Edwardian Script ITC (có sẵn
+#    trong Windows, kiểu chữ uốn lượn gần với chữ gốc nhất), cùng màu vàng, cỡ khớp chiều cao chữ thường.
+EDWARDIAN = "C:/Windows/Fonts/ITCEDSCR.TTF"
+MAU_TIEU_DE = (172, 134, 66)
+TL_TD = .8                                   # thu nhỏ tiêu đề để hai dòng vừa khoảng trống phía trên lời mời
+DAY_GOC, XH_GOC = 735, 45                    # chân chữ và chiều cao chữ thường (chữ n) của tiêu đề gốc
+td_goc = an_hoi.crop((690, 570, 1645, 845))
+le = an_hoi.crop((690, 570, 1018, 845))      # chữ "Lễ" (nét đuôi chữ L kéo dài tới 1015)
+le_a = np.asarray(le).copy()
+le_a[:735 - 570, 990 - 690:] = 254           # bỏ nét xoắn đầu chữ Ă lọt vào khung
+le = Image.fromarray(le_a)
+an_hoi.paste(Image.new("RGB", (1645 - 690, 845 - 570), nen_trang), (690, 570))
+
+
+def thu(im):
+    return im.resize((round(im.width * TL_TD), round(im.height * TL_TD)), Image.LANCZOS)
+
+
+def mat_na_vang(im):
+    """Độ đậm của nét vàng trên nền trắng: nét đậm = 255, nền = 0 (để dán chồng mà không xoá chữ bên cạnh)."""
+    sang = np.asarray(im.convert("L")).astype(float)
+    return Image.fromarray(np.clip((250 - sang) * 255 / (250 - 150), 0, 255).astype(np.uint8))
+
+
+td_goc, le = thu(td_goc), thu(le)
+Y1, Y2 = 600, 795                            # chân chữ dòng 1 và dòng 2
+X1 = 655                                     # mép trái dòng 1 (hoa rum ở bên trái tới khoảng 620)
+an_hoi.paste(Image.new("RGB", td_goc.size, MAU_TIEU_DE), (X1, round(Y1 - (DAY_GOC - 570) * TL_TD)), mat_na_vang(td_goc))
+f_ed = ImageFont.truetype(EDWARDIAN, 200)
+xh = -f_ed.getbbox("n", anchor="ls")[1]
+co_ed = 200 * XH_GOC * TL_TD / xh
+f_ed = phong(EDWARDIAN, co_ed)
+f_va = phong(EDWARDIAN, co_ed * .85)
+lop_moi[MAU_TIEU_DE] = Image.new("L", (an_hoi.width * K, an_hoi.height * K), 0)
+chu2 = "Thành Hôn"
+r_chu2 = f_ed.getlength(chu2) / K
+x_chu2 = LE_PHAI + 10 - r_chu2
+ImageDraw.Draw(lop_moi[MAU_TIEU_DE]).text((x_chu2 * K, Y2 * K), chu2, font=f_ed, fill=255, anchor="ls",
+                                         stroke_width=round(.9 * K), stroke_fill=255)   # Edwardian nét mảnh hơn chữ gốc: tô dày thêm
+x_le = x_chu2 + 8 - le.width
+an_hoi.paste(Image.new("RGB", le.size, MAU_TIEU_DE), (round(x_le), round(Y2 - (DAY_GOC - 570) * TL_TD)), mat_na_vang(le))
+ImageDraw.Draw(lop_moi[MAU_TIEU_DE]).text(((x_le - 14) * K, Y2 * K), "&", font=f_va, fill=255, anchor="rs",
+                                         stroke_width=round(.9 * K), stroke_fill=255)
 
 for mau, lop_m in lop_moi.items():
     an_hoi = Image.composite(Image.new("RGB", an_hoi.size, mau), an_hoi, lop_m.resize(an_hoi.size, Image.LANCZOS))
